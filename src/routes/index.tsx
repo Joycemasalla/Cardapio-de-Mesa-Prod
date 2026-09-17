@@ -41,7 +41,7 @@ function initials(name: string) {
 }
 
 function Index() {
-  const [active, setActive] = useState(categories[0].id);
+  const [active, setActive] = useState(categories[0]!.id);
   const [selected, setSelected] = useState<{ item: MenuItem; category: MenuCategory } | null>(null);
   const navRef = useRef<HTMLDivElement>(null);
 
