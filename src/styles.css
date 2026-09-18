@@ -72,12 +72,14 @@
 }
 
 :root {
-  --brand: oklch(0.632 0.187 34.5);
-  --ink: oklch(0.212 0.021 55.8);
-  --cream: oklch(0.973 0.019 85.6);
+  --brand: oklch(0.775 0.135 84.5);
+  --ink: oklch(0.96 0.012 85);
+  --cream: oklch(0.165 0.012 62);
+  --surface: oklch(0.225 0.014 62);
   --sage: oklch(0.51 0.055 140.2);
-  --gold: oklch(0.71 0.115 78.4);
+  --gold: oklch(0.775 0.135 84.5);
   --radius: 0.625rem;
+
 
   --background: oklch(1 0 0);
   --foreground: oklch(0.129 0.042 264.695);
