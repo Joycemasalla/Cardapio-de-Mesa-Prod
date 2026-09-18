@@ -24,7 +24,9 @@
   --color-cream: var(--cream);
   --color-sage: var(--sage);
   --color-gold: var(--gold);
+  --color-surface: var(--surface);
   --font-display: "Bricolage Grotesque", sans-serif;
+
   --font-body: "DM Sans", sans-serif;
 
   --radius-sm: calc(var(--radius) - 4px);
