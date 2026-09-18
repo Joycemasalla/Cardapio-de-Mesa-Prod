@@ -41,26 +41,24 @@ function initials(name: string) {
 }
 
 function Index() {
-  const [active, setActive] = useState(categories[0]!.id);
+  const [page, setPage] = useState(0);
+  const [dir, setDir] = useState<1 | -1>(1);
+  const [drag, setDrag] = useState(0);
   const [selected, setSelected] = useState<{ item: MenuItem; category: MenuCategory } | null>(null);
   const navRef = useRef<HTMLDivElement>(null);
+  const touch = useRef<{ x: number; y: number; lock: null | "x" | "y" } | null>(null);
 
-  useEffect(() => {
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const visible = entries
-          .filter((e) => e.isIntersecting)
-          .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)[0];
-        if (visible) setActive(visible.target.id);
-      },
-      { rootMargin: "-140px 0px -60% 0px", threshold: 0 },
-    );
-    categories.forEach((c) => {
-      const el = document.getElementById(c.id);
-      if (el) observer.observe(el);
-    });
-    return () => observer.disconnect();
-  }, []);
+  const category = categories[page]!;
+  const active = category.id;
+
+  const goTo = (next: number) => {
+    const clamped = Math.max(0, Math.min(categories.length - 1, next));
+    if (clamped === page) return;
+    setDir(clamped > page ? 1 : -1);
+    setPage(clamped);
+    setDrag(0);
+    window.scrollTo({ top: 0, behavior: "auto" });
+  };
 
   useEffect(() => {
     const btn = navRef.current?.querySelector<HTMLElement>(`[data-cat="${active}"]`);
@@ -73,6 +71,38 @@ function Index() {
       document.body.style.overflow = "";
     };
   }, [selected]);
+
+  const onTouchStart = (e: React.TouchEvent) => {
+    const t = e.touches[0]!;
+    touch.current = { x: t.clientX, y: t.clientY, lock: null };
+  };
+
+  const onTouchMove = (e: React.TouchEvent) => {
+    const start = touch.current;
+    if (!start) return;
+    const t = e.touches[0]!;
+    const dx = t.clientX - start.x;
+    const dy = t.clientY - start.y;
+    if (!start.lock) {
+      if (Math.abs(dx) < 10 && Math.abs(dy) < 10) return;
+      start.lock = Math.abs(dx) > Math.abs(dy) ? "x" : "y";
+    }
+    if (start.lock !== "x") return;
+    const atEdge = (dx > 0 && page === 0) || (dx < 0 && page === categories.length - 1);
+    setDrag(atEdge ? dx * 0.2 : dx);
+  };
+
+  const onTouchEnd = () => {
+    const start = touch.current;
+    touch.current = null;
+    if (start?.lock === "x" && Math.abs(drag) > 60) {
+      goTo(page + (drag < 0 ? 1 : -1));
+      return;
+    }
+    setDrag(0);
+  };
+
+  const dragging = drag !== 0;
 
   return (
     <div className="mx-auto flex min-h-screen w-full max-w-md flex-col bg-cream text-ink shadow-2xl shadow-black/10">
@@ -90,11 +120,11 @@ function Index() {
         ref={navRef}
         className="no-scrollbar sticky top-0 z-20 flex gap-2 overflow-x-auto border-b border-ink/10 bg-cream/95 px-4 py-3 whitespace-nowrap backdrop-blur"
       >
-        {categories.map((c) => (
-          <a
+        {categories.map((c, i) => (
+          <button
             key={c.id}
             data-cat={c.id}
-            href={`#${c.id}`}
+            onClick={() => goTo(i)}
             className={
               active === c.id
                 ? "shrink-0 rounded-full bg-ink px-4 py-2 text-sm font-semibold text-cream transition-colors"
@@ -102,102 +132,142 @@ function Index() {
             }
           >
             {c.label}
-          </a>
+          </button>
         ))}
       </nav>
 
-      <main className="flex-1 space-y-10 px-5 py-6">
-        {categories.map((category, ci) => (
-          <section key={category.id} id={category.id} className="scroll-mt-24 space-y-4">
-            <div className="flex items-end justify-between">
-              <h2 className="font-display text-2xl font-bold">{category.title}</h2>
-              <span className="text-xs tracking-widest text-ink/40 uppercase">
-                {String(ci + 1).padStart(2, "0")}
-              </span>
-            </div>
+      <main
+        className="page-stage flex-1 overflow-hidden"
+        onTouchStart={onTouchStart}
+        onTouchMove={onTouchMove}
+        onTouchEnd={onTouchEnd}
+        onTouchCancel={onTouchEnd}
+      >
+        <section
+          key={category.id}
+          id={category.id}
+          className={`space-y-4 px-5 py-6 ${dragging ? "" : dir === 1 ? "anim-flip-next" : "anim-flip-prev"}`}
+          style={
+            dragging
+              ? {
+                  transform: `translateX(${drag}px) rotateY(${-drag * 0.04}deg)`,
+                  transformOrigin: drag < 0 ? "left center" : "right center",
+                }
+              : undefined
+          }
+        >
+          <div className="flex items-end justify-between">
+            <h2 className="font-display text-2xl font-bold">{category.title}</h2>
+            <span className="text-xs tracking-widest text-ink/40 uppercase">
+              {String(page + 1).padStart(2, "0")} / {String(categories.length).padStart(2, "0")}
+            </span>
+          </div>
 
-            <div className="relative overflow-hidden rounded-2xl">
-              <img
-                src={category.image}
-                alt={`Imagem ilustrativa de ${category.title}`}
-                loading={ci === 0 ? "eager" : "lazy"}
-                width={816}
-                height={816}
-                className="h-36 w-full object-cover"
-              />
-              <span className="absolute right-2 bottom-2 rounded-full bg-ink/70 px-2 py-1 text-[10px] text-cream/80">
-                Imagem ilustrativa
-              </span>
-            </div>
+          <div className="relative overflow-hidden rounded-2xl">
+            <img
+              src={category.image}
+              alt={`Imagem ilustrativa de ${category.title}`}
+              loading={page === 0 ? "eager" : "lazy"}
+              width={816}
+              height={816}
+              className="h-36 w-full object-cover"
+            />
+            <span className="absolute right-2 bottom-2 rounded-full bg-ink/70 px-2 py-1 text-[10px] text-cream/80">
+              Imagem ilustrativa
+            </span>
+          </div>
 
-            {category.intro && <p className="text-[13px] text-ink/60">{category.intro}</p>}
+          {category.intro && <p className="text-[13px] text-ink/60">{category.intro}</p>}
 
-            {category.groups.map((group, gi) => (
-              <div key={gi} className="space-y-3">
-                {group.title && (
-                  <p className="pt-1 text-[11px] font-semibold tracking-[0.25em] text-brand uppercase">
-                    {group.title}
-                  </p>
-                )}
-                {group.items.map((item, ii) => (
-                  <button
-                    key={`${item.name}-${ii}`}
-                    onClick={() => setSelected({ item, category })}
-                    className="anim-rise flex w-full items-start gap-3 rounded-2xl border border-ink/10 bg-white/70 p-3 text-left transition-transform active:scale-[0.99]"
-                  >
-                    <div className="grid size-12 shrink-0 place-items-center rounded-xl bg-brand/10 font-display text-sm font-bold text-brand">
-                      {initials(item.name)}
+          {category.groups.map((group, gi) => (
+            <div key={gi} className="space-y-3">
+              {group.title && (
+                <p className="pt-1 text-[11px] font-semibold tracking-[0.25em] text-brand uppercase">
+                  {group.title}
+                </p>
+              )}
+              {group.items.map((item, ii) => (
+                <button
+                  key={`${item.name}-${ii}`}
+                  onClick={() => setSelected({ item, category })}
+                  className="flex w-full items-start gap-3 rounded-2xl border border-ink/10 bg-white/70 p-3 text-left transition-transform active:scale-[0.99]"
+                >
+                  <div className="grid size-12 shrink-0 place-items-center rounded-xl bg-brand/10 font-display text-sm font-bold text-brand">
+                    {initials(item.name)}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-baseline justify-between gap-3">
+                      <h3 className="text-base font-semibold">{item.name}</h3>
+                      {item.price && (
+                        <span className="shrink-0 font-display text-base font-bold text-brand">
+                          {item.price}
+                        </span>
+                      )}
                     </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-baseline justify-between gap-3">
-                        <h3 className="text-base font-semibold">{item.name}</h3>
-                        {item.price && (
-                          <span className="shrink-0 font-display text-base font-bold text-brand">
-                            {item.price}
-                          </span>
-                        )}
-                      </div>
-                      {item.description && (
-                        <p className="mt-0.5 text-[13px] leading-snug text-ink/60">{item.description}</p>
-                      )}
-                      {item.sizes && (
-                        <p className="mt-1 text-[13px] font-medium text-ink/70">
-                          {item.sizes.map((s) => `${s.label} ${s.price}`).join(" · ")}
-                        </p>
-                      )}
-                      {item.note && <p className="mt-1 text-[11px] text-ink/45">{item.note}</p>}
-                      {category.id === "pizzas" && !item.price && (
-                        <p className="mt-1 text-[13px] font-medium text-ink/70">
-                          P R$ 42,00 · M R$ 48,00 · G R$ 53,00
-                        </p>
-                      )}
-                    </div>
-                  </button>
-                ))}
-              </div>
-            ))}
+                    {item.description && (
+                      <p className="mt-0.5 text-[13px] leading-snug text-ink/60">{item.description}</p>
+                    )}
+                    {item.sizes && (
+                      <p className="mt-1 text-[13px] font-medium text-ink/70">
+                        {item.sizes.map((s) => `${s.label} ${s.price}`).join(" · ")}
+                      </p>
+                    )}
+                    {item.note && <p className="mt-1 text-[11px] text-ink/45">{item.note}</p>}
+                    {category.id === "pizzas" && !item.price && (
+                      <p className="mt-1 text-[13px] font-medium text-ink/70">
+                        P R$ 42,00 · M R$ 48,00 · G R$ 53,00
+                      </p>
+                    )}
+                  </div>
+                </button>
+              ))}
+            </div>
+          ))}
 
-            {category.note && (
-              <p className="rounded-2xl bg-ink px-4 py-3 text-[13px] leading-snug text-cream/80">
-                {category.note}
-              </p>
-            )}
-          </section>
-        ))}
+          {category.note && (
+            <p className="rounded-2xl bg-ink px-4 py-3 text-[13px] leading-snug text-cream/80">
+              {category.note}
+            </p>
+          )}
+
+          <p className="pt-2 text-center text-[11px] text-ink/40">
+            Deslize para o lado para folhear o cardápio
+          </p>
+        </section>
       </main>
 
-      <footer className="border-t border-ink/10 bg-cream px-6 py-5 text-center">
-        <p className="text-[11px] text-ink/45">
-          {RESTAURANT.name} — cardápio da mesa. Faça seu pedido com a nossa equipe.
+      <footer className="sticky bottom-0 border-t border-ink/10 bg-cream/95 px-5 py-3 backdrop-blur">
+        <div className="flex items-center justify-between gap-3">
+          <button
+            onClick={() => goTo(page - 1)}
+            disabled={page === 0}
+            className="rounded-full border border-ink/15 px-4 py-2 text-xs font-medium text-ink/70 disabled:opacity-30"
+          >
+            ← Anterior
+          </button>
+          <div className="flex gap-1.5">
+            {categories.map((c, i) => (
+              <span
+                key={c.id}
+                className={`h-1.5 rounded-full transition-all ${
+                  i === page ? "w-5 bg-brand" : "w-1.5 bg-ink/20"
+                }`}
+              />
+            ))}
+          </div>
+          <button
+            onClick={() => goTo(page + 1)}
+            disabled={page === categories.length - 1}
+            className="rounded-full border border-ink/15 px-4 py-2 text-xs font-medium text-ink/70 disabled:opacity-30"
+          >
+            Próxima →
+          </button>
+        </div>
+        <p className="mt-2 text-center text-[11px] text-ink/40">
+          {RESTAURANT.name} — faça seu pedido com a nossa equipe.
         </p>
-        <button
-          onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
-          className="mt-3 inline-block rounded-full border border-ink/15 px-4 py-2 text-xs font-medium text-ink/70"
-        >
-          Voltar ao topo
-        </button>
-
       </footer>
+
 
       {selected && (
         <div className="fixed inset-0 z-40 flex items-end justify-center">
