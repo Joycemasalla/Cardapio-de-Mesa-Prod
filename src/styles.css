@@ -166,6 +166,50 @@
   animation: rise 0.5s cubic-bezier(0.2, 0.7, 0.2, 1) both;
 }
 
+@keyframes flip-next {
+  from {
+    opacity: 0.25;
+    transform: translateX(28%) rotateY(-38deg) scale(0.96);
+    box-shadow: -18px 0 26px -18px rgb(0 0 0 / 0.45);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    box-shadow: 0 0 0 0 rgb(0 0 0 / 0);
+  }
+}
+
+@keyframes flip-prev {
+  from {
+    opacity: 0.25;
+    transform: translateX(-28%) rotateY(38deg) scale(0.96);
+    box-shadow: 18px 0 26px -18px rgb(0 0 0 / 0.45);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    box-shadow: 0 0 0 0 rgb(0 0 0 / 0);
+  }
+}
+
+@utility page-stage {
+  perspective: 1400px;
+  perspective-origin: center;
+}
+
+@utility anim-flip-next {
+  transform-origin: left center;
+  backface-visibility: hidden;
+  animation: flip-next 0.45s cubic-bezier(0.25, 0.8, 0.3, 1) both;
+}
+
+@utility anim-flip-prev {
+  transform-origin: right center;
+  backface-visibility: hidden;
+  animation: flip-prev 0.45s cubic-bezier(0.25, 0.8, 0.3, 1) both;
+}
+
+
 @layer base {
   body {
     font-family: var(--font-body);
