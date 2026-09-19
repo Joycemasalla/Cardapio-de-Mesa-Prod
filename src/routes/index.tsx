@@ -24,7 +24,8 @@ export const Route = createFileRoute("/")({
   }),
 });
 
-const THRESHOLD = 0.24;
+const THRESHOLD = 0.2;
+const FLICK = 0.4; // px por ms
 
 function Index() {
   const [page, setPage] = useState(0);
@@ -34,7 +35,14 @@ function Index() {
   const navRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
   const sheetRef = useRef<HTMLDivElement>(null);
-  const touch = useRef<{ x: number; y: number; lock: null | "x" | "y" } | null>(null);
+  const drag = useRef<{
+    x: number;
+    y: number;
+    lock: null | "x" | "y";
+    lastX: number;
+    lastT: number;
+    v: number;
+  } | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   const category = categories[page]!;
@@ -70,57 +78,88 @@ function Index() {
       setSettling(false);
       setDx(0);
       sheetRef.current?.scrollTo({ top: 0 });
-    }, 380);
+    }, 460);
   };
 
-  const onTouchStart = (e: React.TouchEvent) => {
-    if (settling) return;
-    const t = e.touches[0]!;
-    touch.current = { x: t.clientX, y: t.clientY, lock: null };
+  const onPointerDown = (e: React.PointerEvent) => {
+    if (settling || e.pointerType === "mouse" && e.button !== 0) return;
+    drag.current = {
+      x: e.clientX,
+      y: e.clientY,
+      lock: null,
+      lastX: e.clientX,
+      lastT: e.timeStamp,
+      v: 0,
+    };
   };
 
-  const onTouchMove = (e: React.TouchEvent) => {
-    const start = touch.current;
+  const onPointerMove = (e: React.PointerEvent) => {
+    const start = drag.current;
     if (!start || settling) return;
-    const t = e.touches[0]!;
-    const mx = t.clientX - start.x;
-    const my = t.clientY - start.y;
+    const mx = e.clientX - start.x;
+    const my = e.clientY - start.y;
     if (!start.lock) {
       if (Math.abs(mx) < 8 && Math.abs(my) < 8) return;
       start.lock = Math.abs(mx) > Math.abs(my) * 1.2 ? "x" : "y";
+      if (start.lock === "x" && e.pointerType !== "mouse") {
+        (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
+      }
     }
     if (start.lock !== "x") return;
+    const dt = e.timeStamp - start.lastT;
+    if (dt > 0) start.v = (e.clientX - start.lastX) / dt;
+    start.lastX = e.clientX;
+    start.lastT = e.timeStamp;
     const edge = (mx > 0 && page === 0) || (mx < 0 && page === categories.length - 1);
-    setDx(edge ? mx * 0.15 : mx);
+    setDx(edge ? mx * 0.12 : mx);
   };
 
-  const onTouchEnd = () => {
-    const start = touch.current;
-    touch.current = null;
+  const onPointerUp = () => {
+    const start = drag.current;
+    drag.current = null;
     if (settling) return;
-    if (start?.lock === "x" && Math.abs(progress) > THRESHOLD) {
-      turnTo(page + (progress < 0 ? 1 : -1));
-      return;
+    if (start?.lock === "x") {
+      const flick = Math.abs(start.v) > FLICK && Math.sign(start.v) === Math.sign(dx);
+      if (Math.abs(progress) > THRESHOLD || (flick && Math.abs(progress) > 0.05)) {
+        turnTo(page + (progress < 0 ? 1 : -1));
+        return;
+      }
     }
     setSettling(true);
     setDx(0);
     clearTimeout(timer.current);
-    timer.current = setTimeout(() => setSettling(false), 320);
+    timer.current = setTimeout(() => setSettling(false), 420);
   };
 
   const active = Math.abs(dx) > 0.5;
-  const angle = progress * 92;
-  const sheetStyle: React.CSSProperties = active || settling
+  const live = active || settling;
+  const abs = Math.abs(progress);
+  // curva suave: a folha começa leve e acelera no fim do gesto
+  const eased = Math.sign(progress) * (1 - Math.pow(1 - abs, 1.55));
+  const angle = eased * 104;
+  const forward = progress < 0;
+  const ease = "cubic-bezier(0.25, 0.9, 0.3, 1)";
+
+  const sheetStyle: React.CSSProperties = live
     ? {
-        transform: `rotateY(${-angle}deg) translateZ(0)`,
-        transformOrigin: progress < 0 ? "left center" : "right center",
-        transition: settling ? "transform 0.38s cubic-bezier(0.22, 0.75, 0.25, 1)" : "none",
-        boxShadow: `${progress < 0 ? "-" : ""}${Math.abs(progress) * 40}px 0 60px -20px rgb(0 0 0 / 0.6)`,
+        transform: `translateX(${eased * width * 0.05}px) rotateY(${-angle}deg)`,
+        transformOrigin: forward ? "left center" : "right center",
+        transition: settling ? `transform 0.46s ${ease}` : "none",
+        filter: `drop-shadow(${forward ? "-" : ""}${abs * 26}px 10px ${18 + abs * 26}px rgb(0 0 0 / ${0.35 + abs * 0.3}))`,
+        borderRadius: forward ? "0 14px 14px 0" : "14px 0 0 14px",
       }
     : {};
 
+  const curlStyle: React.CSSProperties = {
+    opacity: Math.min(1, abs * 1.25),
+    transition: settling ? `opacity 0.46s ${ease}` : "none",
+    background: forward
+      ? "linear-gradient(to left, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0.18) 14%, rgba(255,255,255,0.06) 34%, rgba(0,0,0,0) 62%)"
+      : "linear-gradient(to right, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0.18) 14%, rgba(255,255,255,0.06) 34%, rgba(0,0,0,0) 62%)",
+  };
+
   return (
-    <div className="mx-auto flex h-dvh w-full max-w-md flex-col overflow-hidden bg-cream text-ink">
+    <div className="mx-auto flex h-dvh w-full max-w-md flex-col overflow-hidden bg-cream text-ink select-none">
       <header className="relative shrink-0 overflow-hidden border-b border-brand/20 bg-surface px-5 pt-5 pb-4">
         <div className="absolute -top-12 -right-10 size-36 rounded-full bg-brand/10" />
         <div className="relative flex items-center gap-3">
@@ -130,6 +169,7 @@ function Index() {
             width={559}
             height={447}
             className="h-14 w-auto"
+            draggable={false}
           />
           <div className="min-w-0">
             <h1 className="font-display text-2xl leading-tight font-extrabold text-brand">
@@ -163,13 +203,22 @@ function Index() {
       <main
         ref={stageRef}
         className="page-stage relative flex-1 overflow-hidden"
-        onTouchStart={onTouchStart}
-        onTouchMove={onTouchMove}
-        onTouchEnd={onTouchEnd}
-        onTouchCancel={onTouchEnd}
+        style={{ touchAction: "pan-y" }}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onPointerCancel={onPointerUp}
+        onPointerLeave={onPointerUp}
       >
-        {(active || settling) && (
-          <div className="absolute inset-0 overflow-hidden bg-cream">
+        {live && (
+          <div
+            className="absolute inset-0 overflow-hidden bg-cream"
+            style={{
+              transform: `scale(${0.975 + abs * 0.025})`,
+              opacity: 0.55 + abs * 0.45,
+              transition: settling ? `transform 0.46s ${ease}, opacity 0.46s ${ease}` : "none",
+            }}
+          >
             <Page category={under} index={categories.indexOf(under)} onSelect={() => {}} muted />
           </div>
         )}
@@ -185,6 +234,9 @@ function Index() {
             index={page}
             onSelect={(item) => setSelected({ item, category })}
           />
+          {live && (
+            <div className="pointer-events-none sticky top-0 -mt-[100%] h-dvh w-full" style={curlStyle} />
+          )}
         </div>
       </main>
 
@@ -221,6 +273,7 @@ function Index() {
     </div>
   );
 }
+
 
 function Page({
   category,
