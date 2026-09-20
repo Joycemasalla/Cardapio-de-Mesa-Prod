@@ -224,20 +224,20 @@ function Index() {
         )}
 
         <div
-          ref={sheetRef}
-          className="page-sheet absolute inset-0 overflow-x-hidden overflow-y-auto bg-cream"
+          className="page-sheet absolute inset-0 overflow-hidden bg-cream"
           style={sheetStyle}
         >
-          <Page
-            key={category.id}
-            category={category}
-            index={page}
-            onSelect={(item) => setSelected({ item, category })}
-          />
-          {live && (
-            <div className="pointer-events-none sticky top-0 -mt-[100%] h-dvh w-full" style={curlStyle} />
-          )}
+          <div ref={sheetRef} className="absolute inset-0 overflow-x-hidden overflow-y-auto">
+            <Page
+              key={category.id}
+              category={category}
+              index={page}
+              onSelect={(item) => setSelected({ item, category })}
+            />
+          </div>
+          {live && <div className="pointer-events-none absolute inset-0" style={curlStyle} />}
         </div>
+
       </main>
 
       <footer className="shrink-0 border-t border-ink/10 bg-surface px-5 py-2.5">
