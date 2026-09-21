@@ -77,7 +77,13 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "description", content: "Cardápio digital do Espaço Imperial." },
       { name: "author", content: "Espaço Imperial" },
       { property: "og:type", content: "website" },
+      { property: "og:title", content: "Espaço Imperial — Cardápio Digital" },
+      { property: "og:description", content: "Cardápio digital do Espaço Imperial." },
+      { property: "og:image", content: "/og-image.png" },
       { name: "twitter:card", content: "summary_large_image" },
+      { name: "twitter:title", content: "Espaço Imperial — Cardápio Digital" },
+      { name: "twitter:description", content: "Cardápio digital do Espaço Imperial." },
+      { name: "twitter:image", content: "/og-image.png" },
     ],
     links: [
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
